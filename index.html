@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROPE RUSH</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"Courier New",Courier,monospace;font-weight:bold;text-transform:uppercase;background:var(--bg);color:var(--fg);text-align:center;overflow-x:hidden}
+body.dark{--bg:#000;--fg:#fff;--gray:#666}
+body.light{--bg:#fff;--fg:#000;--gray:#bbb}
+[hidden]{display:none!important}
+#menu,#game{max-width:720px;margin:0 auto;padding:12px}
+h1{font-size:3em;margin:8px 0 0;letter-spacing:4px;text-shadow:4px 4px 0 var(--gray)}
+h3{margin:14px 0 6px}
+.sub{margin:0}
+.row{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+button{font:inherit;font-size:1em;padding:12px 14px;min-height:52px;background:var(--bg);color:var(--fg);border:4px solid var(--fg);box-shadow:4px 4px 0 var(--fg);cursor:pointer;text-transform:uppercase}
+button:active{transform:translate(4px,4px);box-shadow:none}
+button.sel{background:var(--gray);outline:4px dashed var(--fg);outline-offset:3px}
+.start{font-size:1.5em;margin:18px 0;padding:14px 30px}
+.chars button{display:flex;flex-direction:column;align-items:center;flex:1 1 100px}
+.chars .fig{zoom:.6;animation:none!important}
+.info,#menuHint{font-size:.85em;margin:8px 0;min-height:1.2em}
+#statsBox{border:4px solid var(--fg);padding:10px;margin-top:12px;line-height:1.6}
+/* game */
+#hud{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;border:4px solid var(--fg);padding:6px 8px;margin-bottom:10px}
+#arena{position:relative;border:4px solid var(--fg);box-shadow:6px 6px 0 var(--gray);padding:12px 8px 8px;margin-bottom:10px;background:var(--bg)}
+#arena.final{border-style:dashed;animation:blink .6s steps(2) infinite}
+#arena.flash{filter:invert(1)}
+#fighters{display:flex;align-items:flex-end;gap:6px}
+.side{flex:1;min-width:0}
+#mid{width:64px;font-size:1.3em}
+#lead{font-size:.55em;margin-top:6px}
+.tag{height:18px;font-size:.8em}
+.bar{height:20px;border:4px solid var(--fg);position:relative;background:var(--bg)}
+.right .bar{direction:rtl}
+.fill{height:100%;background:var(--fg)}
+.fill.low{background:var(--gray)}
+.bar:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 8px,var(--bg) 8px 10px)}
+.sv{font-size:.8em;margin-top:2px}
+.char{height:76px;display:flex;justify-content:center;align-items:flex-end}
+.right .char{transform:scaleX(-1)}
+.fig{position:relative;width:52px;height:72px;animation:bob 1s steps(2) infinite;transform-origin:50% 100%}
+.fig div{position:absolute;background:var(--fg)}
+.head{left:14px;top:0;width:22px;height:22px}
+.head:after{content:"";position:absolute;right:3px;top:7px;width:5px;height:5px;background:var(--bg)}
+.body{left:12px;top:24px;width:26px;height:26px}
+.arm{left:36px;top:27px;width:16px;height:6px}
+.legs{left:14px;top:50px;width:22px;height:22px;background:linear-gradient(90deg,var(--fg) 9px,transparent 9px 13px,var(--fg) 13px)!important}
+.c-runner .head:before{content:"";position:absolute;left:0;right:0;top:4px;height:4px;background:var(--bg)}
+.c-runner .body{left:15px;width:20px}
+.c-strongman .body{left:6px;width:38px}
+.c-strongman .arm{height:12px;top:25px;left:40px;width:12px}
+.c-ninja .head{background:var(--bg);border:4px solid var(--fg)}
+.c-ninja .head:after{left:-4px;right:auto;top:3px;width:22px;height:4px;background:var(--fg)}
+.fig.pull{animation:pullA .2s steps(3)}
+.fig.power{animation:powerA .3s steps(4)}
+.fig.win{animation:win .5s steps(2) infinite}
+.fig.lose{animation:none;transform:rotate(-80deg) translateX(-4px)}
+#track{position:relative;height:24px;margin:34px 6px 30px}
+.zone{position:absolute;top:-8px;bottom:-8px;width:20%;border:3px solid var(--fg);background:repeating-linear-gradient(45deg,var(--fg) 0 3px,var(--bg) 3px 9px)}
+#track:before{content:"";position:absolute;left:50%;top:-22px;bottom:-22px;width:0;border-left:4px dashed var(--fg)}
+#rope{position:absolute;left:0;right:0;top:6px;height:12px;border:3px solid var(--fg);background:repeating-linear-gradient(90deg,var(--fg) 0 8px,var(--gray) 8px 12px)}
+#marker{position:absolute;top:-14px;width:26px;height:52px;background:var(--fg);border:4px solid var(--bg);outline:4px solid var(--fg);transform:translateX(-50%);left:50%;transition:left .15s steps(4)}
+.lbl{display:flex;justify-content:space-between;font-size:.85em;padding:0 6px}
+#big{display:none;position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);z-index:5;background:var(--bg);border:4px solid var(--fg);box-shadow:6px 6px 0 var(--fg);padding:10px 18px;font-size:1.8em;white-space:nowrap}
+#big.show{display:block}
+#big.final{font-size:2.3em;background:var(--fg);color:var(--bg);animation:pulse .4s steps(2) infinite alternate}
+#hint{font-size:.85em;margin-bottom:10px}
+#ctrl{position:sticky;bottom:0;background:var(--bg);border-top:4px solid var(--fg);padding:10px 0;z-index:3}
+.pair{display:flex;gap:16px}
+.grp{flex:1;display:flex;flex-direction:column;gap:14px}
+.grp button{min-height:68px;font-size:1.1em}
+.grp small{display:block;font-size:.75em}
+.misc{display:flex;gap:14px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+#result{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:10}
+#result h2{font-size:2.4em;margin:0;border:4px solid var(--fg);padding:10px 16px;box-shadow:6px 6px 0 var(--gray)}
+.shake{animation:shake .2s steps(4)}
+@keyframes shake{0%,100%{translate:0}25%{translate:-8px 4px}50%{translate:8px -4px}75%{translate:-5px -3px}}
+@keyframes bob{50%{transform:translateY(-3px)}}
+@keyframes pullA{50%{transform:translateX(-8px) rotate(-8deg)}}
+@keyframes powerA{50%{transform:translateX(-14px) rotate(-16deg)}}
+@keyframes win{50%{transform:translateY(-14px)}}
+@keyframes blink{50%{border-color:var(--gray)}}
+@keyframes pulse{to{scale:1.12}}
+@media(max-width:480px){h1{font-size:2.2em}.pair{gap:8px}#mid{width:44px}.grp button{min-height:72px;padding:6px}}
+</style>
+</head>
+<body class="dark">
+
+<div id="menu">
+  <h1>ROPE RUSH</h1>
+  <p class="sub">PULL. HOLD. WIN.</p>
+  <h3>GAME MODE</h3>
+  <div class="row" id="modeRow"><button data-m="cpu">VS COMPUTER</button><button data-m="two">2 PLAYER</button><button data-m="train">TRAINING</button></div>
+  <div id="diffBox"><h3>DIFFICULTY</h3>
+    <div class="row" id="diffRow"><button data-d="easy">EASY</button><button data-d="normal">NORMAL</button><button data-d="hard">HARD</button></div></div>
+  <div id="roundBox"><h3>MATCH</h3>
+    <div class="row" id="roundRow"><button data-r="2">BEST OF 3</button><button data-r="1">1 ROUND</button></div></div>
+  <h3 id="c1Title">CHARACTER</h3>
+  <div class="row chars" id="c1Row"></div><div class="info" id="c1Info"></div>
+  <div id="c2Box"><h3>PLAYER 2 CHARACTER</h3>
+    <div class="row chars" id="c2Row"></div><div class="info" id="c2Info"></div></div>
+  <div id="menuHint"></div>
+  <button class="start" id="btnStart">START GAME</button>
+  <div class="row"><button id="btnStats">STATISTICS</button><button id="btnSound">SOUND: ON</button><button id="btnTheme">THEME: DARK</button></div>
+  <div id="statsBox" hidden></div>
+</div>
+
+<div id="game" hidden>
+  <div id="hud"><span id="roundTxt"></span><span id="scoreTxt"></span><span id="timeTxt"></span></div>
+  <div id="arena">
+    <div id="big"></div>
+    <div id="fighters">
+      <div class="side" id="side1"><div id="nm1"></div><div class="char" id="ch1"></div><div class="tag" id="tag1"></div>
+        <div class="bar"><div class="fill" id="bar1"></div></div><div class="sv" id="sv1"></div></div>
+      <div id="mid">VS<div id="lead"></div></div>
+      <div class="side right" id="side2"><div id="nm2"></div><div class="char" id="ch2"></div><div class="tag" id="tag2"></div>
+        <div class="bar"><div class="fill" id="bar2"></div></div><div class="sv" id="sv2"></div></div>
+    </div>
+    <div id="track"><div class="zone" style="left:0"></div><div class="zone" style="right:0"></div><div id="rope"></div><div id="marker"></div></div>
+    <div class="lbl"><span id="win1"></span><span id="ropeTxt">50</span><span id="win2"></span></div>
+  </div>
+  <div id="hint"></div>
+  <div id="ctrl">
+    <div class="pair">
+      <div class="grp" id="grpL"><div id="gh1"></div>
+        <button id="btnN1">NORMAL PULL<small id="lblN1"></small></button>
+        <button id="btnP1">POWER PULL<small id="lblP1"></small></button></div>
+      <div class="grp" id="grpR"><div>PLAYER 2</div>
+        <button id="btnN2">NORMAL PULL<small>L</small></button>
+        <button id="btnP2">POWER PULL<small>O</small></button></div>
+    </div>
+    <div class="misc"><button id="btnPause">PAUSE</button><button id="btnResetTrain">RESET TRAINING</button><button id="btnBack">BACK TO MENU</button></div>
+  </div>
+</div>
+
+<div id="result" hidden>
+  <h2 id="resTitle"></h2><div id="resText"></div>
+  <button id="btnAgain">PLAY AGAIN</button><button id="btnMenu">MAIN MENU</button>
+</div>
+
+<script>
+// ---------- 1. Data (everything is defined before it is used) ----------
+var defaultStats = {totalMatches:0, playerWins:0, computerWins:0, draws:0,
+                    totalRounds:0, playerRoundWins:0, computerRoundWins:0, bestCombo:0};
+function loadStats() {
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem('ropeRushStats')); } catch (e) { saved = null; }
+  var result = {};
+  for (var key in defaultStats) {
+    result[key] = (saved && typeof saved[key] === 'number') ? saved[key] : defaultStats[key];
+  }
+  return result;
+}
+function saveStats() { try { localStorage.setItem('ropeRushStats', JSON.stringify(stats)); } catch (e) {} }
+var stats = loadStats();
+
+var chars = {
+  rookie:    {name:'ROOKIE',    normal:5.5, power:21, cost:8, regen:12, info:'BALANCED. NO BONUSES.'},
+  runner:    {name:'RUNNER',    normal:5.5, power:19, cost:8, regen:14, info:'FASTER STAMINA, WEAKER POWER PULL.'},
+  strongman: {name:'STRONGMAN', normal:5.5, power:23, cost:8, regen:10, info:'STRONGER POWER PULL, SLOWER STAMINA.'},
+  ninja:     {name:'NINJA',     normal:5,   power:21, cost:7, regen:12, info:'CHEAPER NORMAL PULL, WEAKER MOVE.'}
+};
+var charKeys = ['rookie', 'runner', 'strongman', 'ninja'];
+var botSettings = {
+  easy:   {min:0.7,  max:1.3,  hesitate:0.35, power:0.05, rest:45},
+  normal: {min:0.45, max:0.8,  hesitate:0.15, power:0.15, rest:30},
+  hard:   {min:0.3,  max:0.55, hesitate:0.05, power:0.30, rest:20}
+};
+
+var mode = 'cpu';            // 'cpu', 'two' or 'train'
+var difficulty = 'normal';
+var roundsToWin = 2;         // 2 = best of 3, 1 = single round
+var soundOn = true;
+var state = 'menu';          // menu, countdown, running, paused, over
+var token = 0;               // changes to cancel old timeouts
+var now = 0, rope = 50, timeLeft = 60, roundNum = 1, botTimer = 1;
+var p1 = {dir:-1, key:'rookie', name:'PLAYER', human:true, score:0};   // left side
+var p2 = {dir:1,  key:'rookie', name:'COMPUTER', human:false, score:0}; // right side
+var audio = null;
+
+function $(id) { return document.getElementById(id); }
+
+// ---------- 2. Sound ----------
+function beep(freq, dur, type) {
+  if (!soundOn) return;
+  try {
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    var o = audio.createOscillator(), g = audio.createGain();
+    o.type = type || 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.08, audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + dur);
+    o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + dur);
+  } catch (e) {}
+}
+function melody(freqs) {
+  for (var i = 0; i < freqs.length; i++) {
+    (function (f, i) { setTimeout(function () { beep(f, 0.18, 'triangle'); }, i * 160); })(freqs[i], i);
+  }
+}
+
+// ---------- 3. Helpers ----------
+function showBig(text, cls) { $('big').textContent = text; $('big').className = 'show ' + (cls || ''); }
+function hideBig() { $('big').className = ''; }
+function shake() {
+  $('arena').classList.add('shake', 'flash');
+  setTimeout(function () { $('arena').classList.remove('shake', 'flash'); }, 200);
+}
+function makeChar(key) {
+  return '<div class="char c-' + key + '"><div class="fig"><div class="head"></div><div class="body"></div>' +
+         '<div class="arm"></div><div class="legs"></div></div></div>';
+}
+function setAnim(side, cls, ms) {
+  if (!side.fig) return;
+  var full = 'fig ' + cls;
+  side.fig.className = full;
+  if (ms) setTimeout(function () { if (side.fig.className === full) side.fig.className = 'fig'; }, ms);
+}
+function renderFighters() {
+  $('ch1').innerHTML = makeChar(p1.key); p1.fig = $('ch1').querySelector('.fig');
+  $('ch2').innerHTML = makeChar(p2.key); p2.fig = $('ch2').querySelector('.fig');
+  $('nm1').innerHTML = p1.name + '<br><small>' + chars[p1.key].name + '</small>';
+  $('nm2').innerHTML = p2.name + '<br><small>' + chars[p2.key].name + '</small>';
+  $('win1').textContent = '< ' + p1.name + ' WINS';
+  $('win2').textContent = p2.name + ' WINS >';
+  $('gh1').textContent = (mode === 'two') ? 'PLAYER 1' : '';
+}
+function setTheme(t) {
+  document.body.className = t;
+  $('btnTheme').textContent = 'THEME: ' + t.toUpperCase();
+  try { localStorage.setItem('ropeRushTheme', t); } catch (e) {}
+}
+
+// ---------- 4. Pulling (used by players AND computer) ----------
+function resetSide(s) {
+  s.stam = 100; s.lastPull = -10; s.readyN = 0; s.readyP = 0;
+  s.combo = 0; s.lastNormal = -10; s.comeback = false;
+}
+function pull(side, power) {
+  if (state !== 'running') return;
+  if (now < (power ? side.readyP : side.readyN)) return;     // cooldown
+  var c = chars[side.key];
+  var cost = power ? 32 : c.cost;
+  if (side.stam < cost) return;                              // not enough stamina
+  var move = power ? c.power : c.normal;
+  if (side.stam < 25) move = move / 2;                       // tired
+  if (side.human && mode !== 'train') {
+    if (power) side.combo = 0;
+    else {
+      side.combo = (now - side.lastNormal < 1.0) ? side.combo + 1 : 1;
+      side.lastNormal = now;
+      if (side === p1 && mode === 'cpu' && side.combo > stats.bestCombo) stats.bestCombo = side.combo;
+      if (side.combo === 3) move *= 1.08; else if (side.combo >= 4) move *= 1.15;
+      if (side.comeback) move *= 1.2;
+    }
+  }
+  side.stam -= cost;
+  side.lastPull = now;
+  if (power) side.readyP = now + 1.2; else side.readyN = now + 0.25;
+  rope = Math.max(0, Math.min(100, rope + side.dir * move));
+  setAnim(side, power ? 'power' : 'pull', power ? 300 : 200);
+  if (power) shake();
+  if (side.human) beep(power ? 220 : (side === p1 ? 520 : 400), power ? 0.25 : 0.06, power ? 'sawtooth' : 'square');
+  else if (power) beep(150, 0.2, 'sawtooth');
+  if (mode !== 'train') {
+    if (rope <= 0) endRound(p1); else if (rope >= 100) endRound(p2);
+  }
+  draw();
+}
+
+// ---------- 5. Game loop ----------
+function update(dt) {
+  now += dt;
+  var sides = (mode === 'train') ? [p1] : [p1, p2];
+  for (var i = 0; i < sides.length; i++) {
+    var s = sides[i];
+    if (s.combo > 0 && now - s.lastNormal > 1.0) s.combo = 0;
+    if (s.human && mode !== 'train') {                       // comeback: losing badly
+      var losing = (s === p1) ? rope : 100 - rope;
+      if (losing > 70) s.comeback = true; else if (losing <= 60) s.comeback = false;
+    }
+    if (now - s.lastPull > 0.4) {
+      s.stam = Math.min(100, s.stam + chars[s.key].regen * (s.comeback ? 1.5 : 1) * dt);
+    }
+  }
+  if (mode === 'cpu') botTurn(dt);
+  if (mode !== 'train' && state === 'running') {
+    timeLeft -= dt;
+    if (timeLeft <= 0) {
+      timeLeft = 0;
+      var r = Math.round(rope);
+      endRound(r < 50 ? p1 : (r > 50 ? p2 : null));
+    }
+  }
+  draw();
+}
+function botTurn(dt) {
+  if (state !== 'running') return;
+  var b = botSettings[difficulty];
+  botTimer -= dt;
+  if (botTimer > 0) return;
+  botTimer = b.min + Math.random() * (b.max - b.min);
+  if (Math.random() < b.hesitate) return;
+  if (p2.stam < b.rest) return;
+  pull(p2, Math.random() < b.power && p2.stam >= 32);
+}
+function draw() {
+  $('marker').style.left = rope + '%';
+  $('ropeTxt').textContent = Math.round(rope);
+  var sides = [p1, p2];
+  for (var i = 0; i < 2; i++) {
+    var s = sides[i], n = i + 1;
+    $('bar' + n).style.width = s.stam + '%';
+    $('bar' + n).className = 'fill' + (s.stam < 25 ? ' low' : '');
+    $('sv' + n).textContent = 'STAMINA ' + Math.floor(s.stam) + (s.stam < 25 ? ' TIRED' : '');
+    $('tag' + n).textContent = (s.combo >= 2 ? 'COMBO x' + s.combo + ' ' : '') + (s.comeback ? 'COMEBACK!' : '');
+  }
+  $('timeTxt').textContent = (mode === 'train') ? 'TRAINING' : 'TIME ' + Math.ceil(timeLeft);
+  $('lead').textContent = (mode === 'train') ? '' : (rope < 47 ? p1.name + ' LEADS' : (rope > 53 ? p2.name + ' LEADS' : 'EVEN'));
+}
+var last = performance.now();
+function loop(t) {
+  var dt = Math.min((t - last) / 1000, 0.1); last = t;
+  if (state === 'running') update(dt);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---------- 6. Rounds and matches ----------
+function resetRound() {
+  rope = 50; timeLeft = 60; now = 0; botTimer = 1;
+  resetSide(p1); resetSide(p2);
+  if (p1.fig) p1.fig.className = 'fig';
+  if (p2.fig) p2.fig.className = 'fig';
+  draw();
+}
+function startGame() {
+  token++;
+  p1.name = (mode === 'two') ? 'PLAYER 1' : 'PLAYER';
+  p2.name = (mode === 'two') ? 'PLAYER 2' : 'COMPUTER';
+  p2.human = (mode === 'two');
+  if (mode === 'cpu') p2.key = charKeys[Math.floor(Math.random() * charKeys.length)];
+  p1.score = 0; p2.score = 0; roundNum = 1;
+  $('menu').hidden = true; $('result').hidden = true; $('game').hidden = false;
+  $('side2').hidden = (mode === 'train'); $('mid').hidden = (mode === 'train');
+  $('grpR').hidden = (mode !== 'two');
+  $('btnPause').hidden = (mode === 'train'); $('btnResetTrain').hidden = (mode !== 'train');
+  $('lblN1').textContent = (mode === 'two') ? 'A' : 'SPACE';
+  $('lblP1').textContent = (mode === 'two') ? 'W' : 'SHIFT';
+  $('hint').textContent = (mode === 'two') ? 'P1: A = PULL, W = POWER  |  P2: L = PULL, O = POWER  |  P / ESC = PAUSE'
+                                           : 'SPACE = PULL, SHIFT = POWER' + (mode === 'cpu' ? ', P / ESC = PAUSE' : '');
+  renderFighters();
+  if (mode === 'train') {
+    resetRound(); hideBig(); state = 'running';
+    $('roundTxt').textContent = 'TRAINING MODE'; $('scoreTxt').textContent = 'PRACTICE';
+    $('arena').classList.remove('final');
+  } else startRound();
+}
+function startRound() {
+  resetRound();
+  state = 'countdown';
+  var isFinal = (roundsToWin === 2 && roundNum >= 3);
+  $('arena').classList.toggle('final', isFinal);
+  $('roundTxt').textContent = isFinal ? 'FINAL ROUND' : (roundsToWin === 1 ? 'SINGLE ROUND' : 'ROUND ' + roundNum);
+  $('scoreTxt').textContent = p1.name + '  ' + p1.score + ' : ' + p2.score + '  ' + p2.name;
+  showBig(isFinal ? 'FINAL ROUND' : (roundsToWin === 1 ? 'GET READY' : 'ROUND ' + roundNum), isFinal ? 'final' : '');
+  if (isFinal) beep(120, 0.5, 'sawtooth');
+  var t = ++token;
+  setTimeout(function () { if (t === token) countdown(); }, 1500);
+}
+function countdown() {
+  var t = ++token, steps = ['3', '2', '1', 'GO!'], i = 0;
+  function next() {
+    if (t !== token) return;
+    if (i < 4) {
+      showBig(steps[i]);
+      beep(i === 3 ? 880 : 440, i === 3 ? 0.3 : 0.12);
+      i++; setTimeout(next, i === 4 ? 600 : 800);
+    } else { hideBig(); state = 'running'; }
+  }
+  next();
+}
+function endRound(winner) {                 // winner = p1, p2, or null for a draw
+  state = 'over'; token++;
+  var t = token, counts = (mode === 'cpu');
+  if (counts) stats.totalRounds++;
+  if (winner) {
+    winner.score++;
+    if (counts) { if (winner === p1) stats.playerRoundWins++; else stats.computerRoundWins++; }
+    setAnim(winner, 'win'); setAnim(winner === p1 ? p2 : p1, 'lose');
+  }
+  $('scoreTxt').textContent = p1.name + '  ' + p1.score + ' : ' + p2.score + '  ' + p2.name;
+  showBig(winner ? winner.name + ' WINS ROUND!' : 'DRAW!');
+  if (winner === p1) melody([523, 659]); else if (winner) melody([300, 220]);
+  var over = (p1.score >= roundsToWin || p2.score >= roundsToWin || (!winner && roundsToWin === 1));
+  if (over) {
+    if (counts) {
+      stats.totalMatches++;
+      if (p1.score > p2.score) stats.playerWins++; else if (p2.score > p1.score) stats.computerWins++; else stats.draws++;
+    }
+    saveStats();
+    setTimeout(function () { if (t === token) showResult(); }, 1600);
+  } else {
+    saveStats();
+    if (winner) roundNum++;
+    setTimeout(function () { if (t === token) startRound(); }, 1800);
+  }
+}
+function showResult() {
+  var title = (p1.score > p2.score) ? p1.name + ' WINS' : (p2.score > p1.score ? p2.name + ' WINS' : 'DRAW');
+  $('resTitle').textContent = title;
+  $('resText').textContent = 'FINAL SCORE: ' + p1.name + ' ' + p1.score + ' : ' + p2.score + ' ' + p2.name;
+  $('result').hidden = false; hideBig();
+  if (p1.score > p2.score) melody([523, 659, 784, 1047]);
+  else if (p2.score > p1.score) melody(p2.human ? [523, 659, 784, 1047] : [400, 300, 200, 120]);
+}
+function goMenu() {
+  token++; state = 'menu';
+  $('game').hidden = true; $('result').hidden = true; $('menu').hidden = false;
+  $('arena').classList.remove('final'); hideBig();
+  showStats(); refreshMenu();
+}
+
+// ---------- 7. Pause and input ----------
+function togglePause() {
+  if (mode === 'train') return;
+  if (state === 'running') { state = 'paused'; showBig('PAUSED'); $('btnPause').textContent = 'RESUME'; }
+  else if (state === 'paused') { state = 'running'; hideBig(); $('btnPause').textContent = 'PAUSE'; }
+}
+document.addEventListener('keydown', function (e) {
+  if (state === 'menu') return;
+  if (e.code === 'Space') e.preventDefault();
+  if (e.repeat) return;                         // holding a key does not spam
+  var k = e.code;
+  if (k === 'KeyP' || k === 'Escape') { togglePause(); return; }
+  if (mode === 'two') {
+    if (k === 'KeyA') pull(p1, false); else if (k === 'KeyW') pull(p1, true);
+    else if (k === 'KeyL') pull(p2, false); else if (k === 'KeyO') pull(p2, true);
+  } else {
+    if (k === 'Space') pull(p1, false);
+    else if (k === 'ShiftLeft' || k === 'ShiftRight') pull(p1, true);
+  }
+});
+document.addEventListener('keyup', function (e) { if (e.code === 'Space' && state !== 'menu') e.preventDefault(); });
+
+function press(id, side, power) {
+  $(id).addEventListener('click', function () { pull(side, power); this.blur(); });
+}
+press('btnN1', p1, false); press('btnP1', p1, true);
+press('btnN2', p2, false); press('btnP2', p2, true);
+$('btnPause').addEventListener('click', function () { togglePause(); this.blur(); });
+$('btnResetTrain').addEventListener('click', function () { resetRound(); this.blur(); });
+$('btnBack').addEventListener('click', goMenu);
+$('btnMenu').addEventListener('click', goMenu);
+$('btnAgain').addEventListener('click', startGame);
+
+// ---------- 8. Menu ----------
+function showStats() {
+  $('statsBox').innerHTML = 'STATISTICS (VS COMPUTER)<br>MATCHES: ' + stats.totalMatches + ' (WON ' + stats.playerWins +
+    ' / LOST ' + stats.computerWins + ' / DRAW ' + stats.draws + ')<br>ROUNDS: ' + stats.totalRounds +
+    ' (WON ' + stats.playerRoundWins + ' / LOST ' + stats.computerRoundWins + ')<br>BEST COMBO: x' + stats.bestCombo;
+}
+function markSel(rowId, attr, value) {
+  var b = $(rowId).children;
+  for (var i = 0; i < b.length; i++) b[i].className = (b[i].getAttribute(attr) === String(value)) ? 'sel' : '';
+}
+function refreshMenu() {
+  markSel('modeRow', 'data-m', mode); markSel('diffRow', 'data-d', difficulty); markSel('roundRow', 'data-r', roundsToWin);
+  markSel('c1Row', 'data-c', p1.key); markSel('c2Row', 'data-c', p2.key);
+  $('diffBox').hidden = (mode !== 'cpu'); $('roundBox').hidden = (mode === 'train'); $('c2Box').hidden = (mode !== 'two');
+  $('c1Title').textContent = (mode === 'two') ? 'PLAYER 1 CHARACTER' : 'CHARACTER';
+  $('c1Info').textContent = chars[p1.key].info; $('c2Info').textContent = chars[p2.key].info;
+  $('menuHint').textContent = (mode === 'two') ? 'PLAYER 1: A = PULL, W = POWER | PLAYER 2: L = PULL, O = POWER'
+                                               : 'SPACE = PULL, SHIFT = POWER, P / ESC = PAUSE';
+}
+function buildCharRow(rowId) {
+  var html = '';
+  for (var i = 0; i < charKeys.length; i++) {
+    html += '<button data-c="' + charKeys[i] + '">' + makeChar(charKeys[i]) + '<span>' + chars[charKeys[i]].name + '</span></button>';
+  }
+  $(rowId).innerHTML = html;
+}
+function onRow(rowId, attr, fn) {
+  $(rowId).addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    fn(b.getAttribute(attr)); refreshMenu();
+  });
+}
+buildCharRow('c1Row'); buildCharRow('c2Row');
+onRow('modeRow', 'data-m', function (v) { mode = v; });
+onRow('diffRow', 'data-d', function (v) { difficulty = v; });
+onRow('roundRow', 'data-r', function (v) { roundsToWin = Number(v); });
+onRow('c1Row', 'data-c', function (v) { p1.key = v; });
+onRow('c2Row', 'data-c', function (v) { p2.key = v; });
+$('btnStart').addEventListener('click', startGame);
+$('btnStats').addEventListener('click', function () { showStats(); $('statsBox').hidden = !$('statsBox').hidden; });
+$('btnSound').addEventListener('click', function () {
+  soundOn = !soundOn; this.textContent = 'SOUND: ' + (soundOn ? 'ON' : 'OFF'); beep(600, 0.1);
+});
+$('btnTheme').addEventListener('click', function () { setTheme(document.body.className === 'dark' ? 'light' : 'dark'); });
+
+// ---------- 9. Start ----------
+var savedTheme = 'dark';
+try { savedTheme = localStorage.getItem('ropeRushTheme') || 'dark'; } catch (e) {}
+setTheme(savedTheme === 'light' ? 'light' : 'dark');
+showStats(); refreshMenu();
+</script>
+</body>
+</html>
