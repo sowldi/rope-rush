@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>ROPE RUSH</title>
+<style>
+* { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
+body { min-height: 100vh; padding: 14px; display: flex; justify-content: center; align-items: center; color: #fff;
+       font-family: Arial, Helvetica, sans-serif; background: radial-gradient(circle at top, #1d2650, #0a0d1a 70%); }
+button { font-family: inherit; color: #fff; cursor: pointer; border: 0; touch-action: manipulation; }
+
+/* screens and overlays */
+.screen { display: none; width: 100%; max-width: 900px; flex-direction: column; align-items: center; gap: 16px; text-align: center; animation: fade 0.4s; }
+.screen.active { display: flex; }
+.overlay { position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; align-items: center; justify-content: center;
+           gap: 14px; padding: 20px; background: rgba(5, 8, 20, 0.88); }
+.overlay.show { display: flex; }
+#countdownOverlay { background: none; pointer-events: none; }
+#countdownText { font-size: clamp(6rem, 30vw, 12rem); font-weight: 900; color: #ffd34d; text-shadow: 0 0 50px #ffd34d; animation: pop 0.9s; }
+
+/* menu */
+h1 { font-size: clamp(3rem, 14vw, 6rem); letter-spacing: 4px; font-style: italic;
+     background: linear-gradient(90deg, #22d3ee, #ffd34d, #ff3d71); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.description { color: #aab2d5; max-width: 480px; line-height: 1.5; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.diffBtn { padding: 12px 22px; font-size: 1rem; font-weight: bold; border-radius: 12px; background: #1b2240; border: 2px solid #33406e; }
+.diffBtn.active { border-color: #ffd34d; background: #3a3220; box-shadow: 0 0 16px rgba(255, 211, 77, 0.4); }
+.bigBtn { padding: 18px 44px; font-size: 1.4rem; font-weight: 900; border-radius: 16px; background: linear-gradient(135deg, #22d3ee, #6366f1, #ff3d71);
+          box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5); animation: pulse 2s infinite; }
+.smallBtn { padding: 12px 22px; font-size: 1rem; font-weight: bold; border-radius: 12px; background: #262f55; border: 1px solid #4a5688; }
+.smallBtn:hover, .diffBtn:hover { filter: brightness(1.3); }
+.card { background: rgba(255, 255, 255, 0.06); border: 1px solid #33406e; border-radius: 16px; padding: 14px 20px; max-width: 520px; text-align: left; line-height: 1.6; font-size: 0.95rem; color: #ccd2f0; }
+#statsText { color: #ffd34d; font-weight: bold; }
+
+/* game screen */
+.hud { width: 100%; display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: start; }
+.panel b { display: block; margin-bottom: 6px; letter-spacing: 2px; }
+.panel.you b { color: #22d3ee; }
+.panel.bot { text-align: right; }
+.panel.bot b { color: #ff3d71; }
+.bar { position: relative; height: 18px; border-radius: 10px; background: #1b2240; border: 1px solid #4a5688; overflow: hidden; }
+.bar::after { content: ""; position: absolute; left: 32%; top: 0; bottom: 0; width: 2px; background: rgba(255, 255, 255, 0.7); }
+.bar div { height: 100%; width: 100%; transition: width 0.1s; }
+#playerBar { background: linear-gradient(90deg, #0891b2, #22d3ee); }
+#botBar { background: linear-gradient(90deg, #be123c, #ff3d71); }
+.panel.bot .bar { transform: scaleX(-1); }
+.center { text-align: center; }
+#timerText { font-size: clamp(2rem, 8vw, 3rem); font-weight: 900; }
+#timerText.hot { color: #ff3d71; text-shadow: 0 0 16px #ff3d71; }
+#pauseBtn { margin-top: 6px; padding: 8px 16px; font-size: 0.8rem; }
+
+.arena { width: 100%; display: flex; align-items: center; gap: 8px; padding: 22px 10px; border-radius: 22px; border: 1px solid #33406e;
+         background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); }
+.arena.shake { animation: shake 0.3s; }
+.fighter { font-size: clamp(2.6rem, 10vw, 4.5rem); transition: transform 0.12s; }
+#botFighter { transform: scaleX(-1); }
+.fighter.pulling { transform: translateX(-10px) rotate(-8deg); }
+#botFighter.pulling { transform: scaleX(-1) translateX(-10px) rotate(-8deg); }
+.track { position: relative; flex: 1; height: 120px; }
+.zone { position: absolute; top: 0; bottom: 0; width: 12%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; letter-spacing: 1px; }
+.zone.left { left: 0; background: rgba(34, 211, 238, 0.2); border-left: 4px solid #22d3ee; color: #22d3ee; }
+.zone.right { right: 0; background: rgba(255, 61, 113, 0.2); border-right: 4px solid #ff3d71; color: #ff3d71; }
+.centerLine { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px dashed rgba(255, 255, 255, 0.5); }
+.rope { --p: 50%; position: absolute; left: 0; right: 0; top: 50%; height: 14px; transform: translateY(-50%); border-radius: 8px;
+        background: linear-gradient(90deg, #22d3ee var(--p), #ff3d71 var(--p)); box-shadow: 0 0 14px rgba(255, 255, 255, 0.25); }
+.rope::after { content: ""; position: absolute; inset: 0; border-radius: 8px; background: repeating-linear-gradient(115deg, rgba(0, 0, 0, 0.3) 0 4px, transparent 4px 10px); }
+.marker { position: absolute; top: 50%; left: 50%; width: 24px; height: 50px; transform: translate(-50%, -50%); border-radius: 10px;
+          background: linear-gradient(#ffd34d, #ff9f1c); box-shadow: 0 0 20px #ffd34d, 0 0 0 3px #0a0d1a; transition: left 0.12s linear; }
+#ropeText { font-weight: bold; font-size: 1.05rem; }
+.caption { color: #8b93b8; font-size: 0.8rem; margin-top: -8px; }
+
+.controls { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pullBtn { height: 110px; border-radius: 18px; font-size: clamp(1rem, 4.5vw, 1.4rem); font-weight: 900; background: linear-gradient(135deg, #0891b2, #22d3ee);
+           box-shadow: 0 0 24px rgba(34, 211, 238, 0.3); transition: transform 0.1s, opacity 0.2s; }
+.pullBtn.power { background: linear-gradient(135deg, #e11d48, #f59e0b); box-shadow: 0 0 24px rgba(255, 61, 113, 0.35); }
+.pullBtn small { display: block; margin-top: 6px; font-size: 0.7rem; letter-spacing: 2px; opacity: 0.8; }
+.pullBtn:active { transform: scale(0.96); }
+.pullBtn.disabled { opacity: 0.4; }
+.pullBtn.denied { animation: deny 0.25s; }
+
+/* result */
+#resultTitle { font-size: clamp(2.6rem, 12vw, 5rem); font-weight: 900; font-style: italic; animation: pop 0.6s; }
+.title-player { color: #22d3ee; text-shadow: 0 0 40px #22d3ee; }
+.title-computer { color: #ff3d71; text-shadow: 0 0 40px #ff3d71; }
+.title-draw { color: #ffd34d; text-shadow: 0 0 40px #ffd34d; }
+#resultInfo { font-size: 1.1rem; line-height: 1.8; }
+
+@keyframes fade { from { opacity: 0; transform: translateY(10px); } }
+@keyframes pop { from { transform: scale(2); opacity: 0; } }
+@keyframes pulse { 50% { box-shadow: 0 8px 50px rgba(255, 61, 113, 0.6); } }
+@keyframes shake { 25% { transform: translate(-6px, 3px); } 50% { transform: translate(6px, -3px); } 75% { transform: translate(-3px, 2px); } }
+@keyframes deny { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@media (max-width: 560px) { .track { height: 100px; } .pullBtn { height: 96px; } }
+</style>
+</head>
+<body>
+
+<!-- ============ MAIN MENU ============ -->
+<div id="menuScreen" class="screen active">
+  <h1>ROPE RUSH</h1>
+  <p class="description">A tug-of-war against the computer. Pull the rope to your side, but watch your stamina: every pull costs energy!</p>
+  <div class="row">
+    <button class="diffBtn" data-level="easy">EASY</button>
+    <button class="diffBtn" data-level="normal">NORMAL</button>
+    <button class="diffBtn" data-level="hard">HARD</button>
+  </div>
+  <button id="startBtn" class="bigBtn">START GAME</button>
+  <div class="card">
+    <b>How to play</b><br>
+    • Use NORMAL PULL (SPACE) or POWER PULL (SHIFT) to drag the rope to the LEFT.<br>
+    • Pulling costs stamina. Stamina refills slowly when you stop pulling. Below 25 stamina your pulls are only half as strong.<br>
+    • Reach the left edge to win. The computer wants the right edge.<br>
+    • Match time: 60 seconds. If time runs out, the side with the rope closer to it wins.<br>
+    • P or ESC = pause.
+  </div>
+  <p id="statsText"></p>
+</div>
+
+<!-- ============ GAME SCREEN ============ -->
+<div id="gameScreen" class="screen">
+  <div class="hud">
+    <div class="panel you"><b>PLAYER</b><div class="bar"><div id="playerBar"></div></div><span id="playerStaminaText">100</span></div>
+    <div class="center"><div id="timerText">60</div><button id="pauseBtn" class="smallBtn">PAUSE</button></div>
+    <div class="panel bot"><b>COMPUTER</b><div class="bar"><div id="botBar"></div></div><span id="botStaminaText">100</span></div>
+  </div>
+
+  <div id="arena" class="arena">
+    <div id="playerFighter" class="fighter">😤</div>
+    <div class="track">
+      <div class="zone left">YOU WIN</div>
+      <div class="zone right">BOT WINS</div>
+      <div class="centerLine"></div>
+      <div id="rope" class="rope"></div>
+      <div id="marker" class="marker"></div>
+    </div>
+    <div id="botFighter" class="fighter">🤖</div>
+  </div>
+  <div id="ropeText">Rope position: 50.0 / 100</div>
+  <div class="caption">0 = player wins · 50 = center · 100 = computer wins · white tick on the bar = Power Pull cost</div>
+
+  <div class="controls">
+    <button id="pullBtn" class="pullBtn">NORMAL PULL<small>SPACE</small></button>
+    <button id="powerBtn" class="pullBtn power">POWER PULL<small>SHIFT</small></button>
+  </div>
+
+  <div id="countdownOverlay" class="overlay"><div id="countdownText">3</div></div>
+
+  <div id="pauseOverlay" class="overlay">
+    <h2 style="font-size:3rem">PAUSED</h2>
+    <button id="resumeBtn" class="bigBtn">RESUME</button>
+    <button id="pauseMenuBtn" class="smallBtn">MAIN MENU</button>
+  </div>
+
+  <div id="resultOverlay" class="overlay">
+    <div id="resultTitle">PLAYER WINS</div>
+    <div id="resultInfo"></div>
+    <div class="row">
+      <button id="playAgainBtn" class="bigBtn">PLAY AGAIN</button>
+      <button id="resultMenuBtn" class="smallBtn">MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= SETTINGS ================= */
+const PULL_MOVE = 5.5;
+const PULL_COST = 8;
+const POWER_MOVE = 21;
+const POWER_COST = 32;
+const MATCH_SECONDS = 60;
+const TICK_MS = 100;            // the game "ticks" 10 times per second
+const REGEN_PER_TICK = 1.2;     // = 12 stamina per second
+const REGEN_DELAY_MS = 400;     // stamina only refills after 0.4 s without pulling
+const PULL_GAP_MS = 250;        // wait time after a Normal Pull (also stops spamming)
+const POWER_GAP_MS = 1200;      // wait time after a Power Pull (player and bot)
+const TIRED_BELOW = 25;         // below this stamina, pulls are weaker (for player AND bot)
+const TIRED_FACTOR = 0.5;       // tired pulls move the rope only half as far
+
+const BOT_LEVELS = {
+  easy:   { minWait: 800, maxWait: 1400, powerChance: 0.05, restBelow: 8 },
+  normal: { minWait: 300, maxWait: 500,  powerChance: 0.5,  restBelow: 30 },
+  hard:   { minWait: 100, maxWait: 200,  powerChance: 0.85, restBelow: 32 }
+};
+
+/* ================= GAME VARIABLES ================= */
+let ropePosition = 50;          // 0 = player wins, 50 = center, 100 = computer wins
+let playerStamina = 100;
+let botStamina = 100;
+let timeLeftMs = MATCH_SECONDS * 1000;
+let gameRunning = false;        // true only while the match is being played
+let paused = false;
+let difficulty = 'normal';
+let currentScreen = 'menu';
+let playerIdleMs = 0;           // time since the player last pulled
+let botIdleMs = 0;              // time since the bot last pulled
+let botWaitMs = 800;            // time until the bot thinks again
+let pullLockedUntil = 0;        // the player cannot pull again before this time
+let tickTimer = null;
+let countdownTimer = null;
+let stats = { total: 0, playerWins: 0, computerWins: 0 };
+
+/* ================= PAGE ELEMENTS ================= */
+const menuScreen = document.getElementById('menuScreen');
+const gameScreen = document.getElementById('gameScreen');
+const statsText = document.getElementById('statsText');
+const arena = document.getElementById('arena');
+const playerFighter = document.getElementById('playerFighter');
+const botFighter = document.getElementById('botFighter');
+const playerBar = document.getElementById('playerBar');
+const botBar = document.getElementById('botBar');
+const playerStaminaText = document.getElementById('playerStaminaText');
+const botStaminaText = document.getElementById('botStaminaText');
+const timerText = document.getElementById('timerText');
+const ropeText = document.getElementById('ropeText');
+const rope = document.getElementById('rope');
+const marker = document.getElementById('marker');
+const pullBtn = document.getElementById('pullBtn');
+const powerBtn = document.getElementById('powerBtn');
+const countdownOverlay = document.getElementById('countdownOverlay');
+const countdownText = document.getElementById('countdownText');
+const pauseOverlay = document.getElementById('pauseOverlay');
+const resultOverlay = document.getElementById('resultOverlay');
+const resultTitle = document.getElementById('resultTitle');
+const resultInfo = document.getElementById('resultInfo');
+
+/* ================= SMALL HELPERS ================= */
+function flashClass(element, className, ms) {
+  element.classList.add(className);
+  setTimeout(function () { element.classList.remove(className); }, ms);
+}
+
+function randomBotWait() {
+  const level = BOT_LEVELS[difficulty];
+  return level.minWait + Math.random() * (level.maxWait - level.minWait);
+}
+
+function showScreen(name) {
+  currentScreen = name;
+  menuScreen.classList.toggle('active', name === 'menu');
+  gameScreen.classList.toggle('active', name === 'game');
+}
+
+/* ================= STATISTICS (localStorage) ================= */
+function loadStats() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ropeRushStats'));
+    if (saved) {
+      stats.total = Number(saved.total) || 0;
+      stats.playerWins = Number(saved.playerWins) || 0;
+      stats.computerWins = Number(saved.computerWins) || 0;
+    }
+  } catch (error) { /* no saved stats yet */ }
+}
+
+function saveStats() {
+  try { localStorage.setItem('ropeRushStats', JSON.stringify(stats)); } catch (error) { /* storage not available */ }
+}
+
+function showStats() {
+  statsText.textContent = 'Matches: ' + stats.total + '  |  Player wins: ' + stats.playerWins + '  |  Computer wins: ' + stats.computerWins;
+}
+
+/* ================= SCREEN / UI ================= */
+function selectDifficulty(level) {
+  difficulty = level;
+  document.querySelectorAll('.diffBtn').forEach(function (button) {
+    button.classList.toggle('active', button.dataset.level === level);
+  });
+}
+
+function updateUI() {
+  playerBar.style.width = playerStamina + '%';
+  botBar.style.width = botStamina + '%';
+  playerStaminaText.textContent = Math.floor(playerStamina);
+  botStaminaText.textContent = Math.floor(botStamina);
+  timerText.textContent = Math.ceil(timeLeftMs / 1000);
+  timerText.classList.toggle('hot', gameRunning && timeLeftMs <= 10000);
+  ropeText.textContent = 'Rope position: ' + ropePosition.toFixed(1) + ' / 100';
+  rope.style.setProperty('--p', ropePosition + '%');
+  marker.style.left = ropePosition + '%';
+  pullBtn.classList.toggle('disabled', !gameRunning || paused || playerStamina < PULL_COST);
+  powerBtn.classList.toggle('disabled', !gameRunning || paused || playerStamina < POWER_COST);
+}
+
+/* ================= PLAYER ACTIONS ================= */
+// Both the buttons and the keyboard call playerPull() or powerPull().
+function playerPull() { doPlayerPull(false); }
+function powerPull() { doPlayerPull(true); }
+
+function doPlayerPull(isPower) {
+  if (!gameRunning || paused) return;                       // no input before / after the match or while paused
+  const now = Date.now();
+  if (now < pullLockedUntil) return;                        // still waiting after the last pull
+  const cost = isPower ? POWER_COST : PULL_COST;
+  let move = isPower ? POWER_MOVE : PULL_MOVE;
+  if (playerStamina < TIRED_BELOW) move = move * TIRED_FACTOR;
+  if (playerStamina < cost) {                               // not enough stamina
+    flashClass(isPower ? powerBtn : pullBtn, 'denied', 250);
+    return;
+  }
+  pullLockedUntil = now + (isPower ? POWER_GAP_MS : PULL_GAP_MS);
+  playerStamina -= cost;
+  playerIdleMs = 0;
+  ropePosition = Math.max(0, ropePosition - move);
+  flashClass(playerFighter, 'pulling', 150);
+  if (isPower) flashClass(arena, 'shake', 300);
+  updateUI();
+  checkWinner();
+}
+
+/* ================= BOT ================= */
+// The bot follows the same rules: it needs stamina and spends it on every pull.
+function botPull(isPower) {
+  if (!gameRunning || paused) return;
+  const cost = isPower ? POWER_COST : PULL_COST;
+  let move = isPower ? POWER_MOVE : PULL_MOVE;
+  if (botStamina < TIRED_BELOW) move = move * TIRED_FACTOR;
+  if (botStamina < cost) return;
+  botStamina -= cost;
+  botIdleMs = 0;
+  if (isPower) botWaitMs = POWER_GAP_MS;                    // the bot also has to wait after a Power Pull
+  ropePosition = Math.min(100, ropePosition + move);
+  flashClass(botFighter, 'pulling', 150);
+  if (isPower) flashClass(arena, 'shake', 300);
+  checkWinner();
+}
+
+function botThink() {
+  const level = BOT_LEVELS[difficulty];
+  if (botStamina < level.restBelow) return;                 // short rest to recover
+  if (botStamina >= POWER_COST && Math.random() < level.powerChance) {
+    botPull(true);
+  } else if (botStamina >= PULL_COST) {
+    botPull(false);
+  }
+}
+
+/* ================= GAME LOOP ================= */
+function updateGame() {
+  if (!gameRunning || paused) return;                       // pause stops timer, bot and regeneration
+  timeLeftMs -= TICK_MS;
+  playerIdleMs += TICK_MS;
+  botIdleMs += TICK_MS;
+
+  if (playerIdleMs >= REGEN_DELAY_MS) playerStamina = Math.min(100, playerStamina + REGEN_PER_TICK);
+  if (botIdleMs >= REGEN_DELAY_MS) botStamina = Math.min(100, botStamina + REGEN_PER_TICK);
+
+  botWaitMs -= TICK_MS;
+  if (botWaitMs <= 0) {
+    botWaitMs = randomBotWait();
+    botThink();
+  }
+
+  if (gameRunning && timeLeftMs <= 0) {                     // time is over
+    timeLeftMs = 0;
+    endGame(winnerByPosition());
+  }
+  updateUI();
+}
+
+function checkWinner() {
+  if (ropePosition <= 0) endGame('player');
+  else if (ropePosition >= 100) endGame('computer');
+}
+
+// Time is over: the side that has the rope closer to its own side wins.
+function winnerByPosition() {
+  if (ropePosition < 50) return 'player';
+  if (ropePosition > 50) return 'computer';
+  return 'draw';
+}
+
+/* ================= GAME FLOW ================= */
+function showCountdown(text) {
+  countdownText.textContent = text;
+  countdownText.style.animation = 'none';
+  void countdownText.offsetWidth;                           // restart the CSS animation
+  countdownText.style.animation = '';
+}
+
+function startGame() {
+  resetGame();
+  showScreen('game');
+  let count = 3;
+  showCountdown(count);
+  countdownOverlay.classList.add('show');
+  countdownTimer = setInterval(function () {
+    count--;
+    if (count > 0) {
+      showCountdown(count);
+    } else if (count === 0) {
+      showCountdown('GO!');
+      gameRunning = true;                                   // the match starts here
+      tickTimer = setInterval(updateGame, TICK_MS);
+    } else {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+      countdownOverlay.classList.remove('show');
+    }
+  }, 1000);
+}
+
+function endGame(winner) {
+  if (!gameRunning) return;                                 // the result can only be decided once
+  gameRunning = false;
+  clearInterval(tickTimer);
+  tickTimer = null;
+
+  stats.total++;
+  if (winner === 'player') stats.playerWins++;
+  if (winner === 'computer') stats.computerWins++;
+  saveStats();
+  updateUI();
+
+  resultTitle.textContent = winner === 'player' ? 'PLAYER WINS' : winner === 'computer' ? 'COMPUTER WINS' : 'DRAW';
+  resultTitle.className = 'title-' + winner;
+  const elapsedSeconds = (MATCH_SECONDS * 1000 - timeLeftMs) / 1000;
+  resultInfo.innerHTML =
+    'Final time: <b>' + elapsedSeconds.toFixed(1) + ' s</b><br>' +
+    'Final rope position: <b>' + ropePosition.toFixed(1) + ' / 100</b><br>' +
+    'Player stamina: <b>' + Math.floor(playerStamina) + '</b><br>' +
+    'Computer stamina: <b>' + Math.floor(botStamina) + '</b>';
+  resultOverlay.classList.add('show');
+}
+
+function resetGame() {
+  clearInterval(tickTimer);
+  clearInterval(countdownTimer);
+  tickTimer = null;
+  countdownTimer = null;
+  ropePosition = 50;
+  playerStamina = 100;
+  botStamina = 100;
+  timeLeftMs = MATCH_SECONDS * 1000;
+  gameRunning = false;
+  paused = false;
+  playerIdleMs = 0;
+  botIdleMs = 0;
+  pullLockedUntil = 0;
+  botWaitMs = randomBotWait();
+  pauseOverlay.classList.remove('show');
+  resultOverlay.classList.remove('show');
+  countdownOverlay.classList.remove('show');
+  updateUI();
+}
+
+function goToMenu() {
+  resetGame();
+  showStats();
+  showScreen('menu');
+}
+
+function togglePause() {
+  if (!gameRunning) return;
+  paused = !paused;
+  pauseOverlay.classList.toggle('show', paused);
+  updateUI();
+}
+
+/* ================= INPUT (listeners are added only once) ================= */
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('playAgainBtn').addEventListener('click', startGame);
+document.getElementById('resultMenuBtn').addEventListener('click', goToMenu);
+document.getElementById('pauseMenuBtn').addEventListener('click', goToMenu);
+document.getElementById('resumeBtn').addEventListener('click', togglePause);
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+document.querySelectorAll('.diffBtn').forEach(function (button) {
+  button.addEventListener('click', function () { selectDifficulty(button.dataset.level); });
+});
+
+// pointerdown fires once per touch/click, so holding a button does nothing extra
+pullBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); playerPull(); });
+powerBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); powerPull(); });
+
+document.addEventListener('keydown', function (e) {
+  if (e.code === 'KeyP' || e.code === 'Escape') {
+    togglePause();
+  } else if (currentScreen === 'game' && (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight')) {
+    e.preventDefault();
+    if (e.repeat) return;                                   // holding a key does not repeat the pull
+    if (e.code === 'Space') playerPull();
+    else powerPull();
+  }
+});
+document.addEventListener('keyup', function (e) {
+  if (currentScreen === 'game' && e.code === 'Space') e.preventDefault();
+});
+
+// automatically pause when the tab is hidden
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden && gameRunning && !paused) togglePause();
+});
+
+/* ================= START ================= */
+loadStats();
+showStats();
+selectDifficulty('normal');
+resetGame();
+showScreen('menu');
+</script>
+</body>
+</html>
